@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>MetaPrompts: Manage Prompts, Stages & Test Conditions</title>
+  <!-- Supabase JS client (v2) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 2rem;
+    }
+    h1, h2 {
+      margin-bottom: 0.5rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 0.5rem;
+    }
+    th {
+      background: #eee;
+    }
+    .form-section {
+      margin-bottom: 2rem;
+      border: 1px solid #ccc;
+      padding: 1rem;
+      border-radius: 4px;
+    }
+    .form-section label {
+      display: block;
+      margin-top: 1rem;
+    }
+    .form-section select,
+    .form-section textarea,
+    .form-section input {
+      width: 100%;
+      font-size: 1rem;
+    }
+    .form-section button {
+      margin-top: 1rem;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+    }
+    .error {
+      color: red;
+      margin-top: 1rem;
+    }
+    .success {
+      color: green;
+      margin-top: 1rem;
+    }
+    .warning {
+      color: #b8860b;
+      font-weight: bold;
+      margin-bottom: 1rem;
+    }
+    .section-container {
+      margin-bottom: 3rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>MetaPrompts: Manage Prompts, Stages & Test Conditions</h1>
+  <div class="warning">
+    This interface now allows you to create new prompts, map prompts to stages, and create test conditions for each prompt.
+  </div>
+
+  <!-- 1. Manage Prompts -->
+  <div class="section-container">
+    <h2>Manage Prompts</h2>
+    <table id="promptsTable">
+      <thead>
+        <tr>
+          <th>Prompt ID</th>
+          <th>Prompt Text</th>
+          <th>Context Type</th>
+        </tr>
+      </thead>
+      <tbody id="promptsTableBody">
+        <!-- Populated by loadPrompts() -->
+      </tbody>
+    </table>
+
+    <div class="form-section">
+      <h3>Create a New Prompt</h3>
+      <label for="promptTextInput">Prompt Text:</label>
+      <textarea id="promptTextInput" rows="2" placeholder="Enter new meta-awareness prompt here."></textarea>
+
+      <label for="contextTypeSelect">Context Type:</label>
+      <select id="contextTypeSelect">
+        <option value="context-free">context-free</option>
+        <option value="context-dependent">context-dependent</option>
+      </select>
+
+      <button id="createPromptBtn">Create Prompt</button>
+      <div class="error" id="promptErrorMsg"></div>
+      <div class="success" id="promptSuccessMsg"></div>
+    </div>
+  </div>
+
+  <!-- 2. Prompts -> Stages Mapping -->
+  <div class="section-container">
+    <h2>Prompts and Their Stages</h2>
+    <table id="promptsStagesTable">
+      <thead>
+        <tr>
+          <th>Prompt ID</th>
+          <th>Prompt Text</th>
+          <th>Context Type</th>
+          <th>Stage Name</th>
+          <th>Extra Metadata</th>
+        </tr>
+      </thead>
+      <tbody id="promptsStagesTableBody">
+        <!-- Populated by loadPromptsWithStages() -->
+      </tbody>
+    </table>
+    <div class="form-section">
+      <h3>Create a Prompt → Stage Mapping</h3>
+      <label for="mapPromptSelect">Select Prompt:</label>
+      <select id="mapPromptSelect"></select>
+      
+      <label for="mapStageSelect">Select Stage:</label>
+      <select id="mapStageSelect"></select>
+      
+      <label for="mapExtraMetadata">Extra Metadata (optional):</label>
+      <textarea id="mapExtraMetadata" rows="2"></textarea>
+
+      <button id="createMappingBtn">Create Mapping</button>
+      <div class="error" id="mappingErrorMsg"></div>
+      <div class="success" id="mappingSuccessMsg"></div>
+    </div>
+  </div>
+
+  <!-- 3. Prompt Test Conditions -->
+  <div class="section-container">
+    <h2>Prompt Test Conditions</h2>
+    <table id="testConditionsTable">
+      <thead>
+        <tr>
+          <th>Test Condition ID</th>
+          <th>Prompt ID</th>
+          <th>LLM Name</th>
+          <th>LLM Version</th>
+          <th>LLM Provider</th>
+          <th>LLM Parameters</th>
+          <th>Context Warning</th>
+          <th>Date Tested</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody id="testConditionsTableBody">
+        <!-- Populated by loadTestConditions() -->
+      </tbody>
+    </table>
+    
+    <div class="form-section">
+      <h3>Create New Test Condition</h3>
+      <label for="testConditionPromptSelect">Select Prompt ID:</label>
+      <select id="testConditionPromptSelect"></select>
+
+      <label for="llmNameInput">LLM Name:</label>
+      <input type="text" id="llmNameInput" placeholder="e.g. GPT-4" />
+
+      <label for="llmVersionInput">LLM Version:</label>
+      <input type="text" id="llmVersionInput" placeholder="e.g. 2023-06-13" />
+
+      <label for="llmProviderInput">LLM Provider:</label>
+      <input type="text" id="llmProviderInput" placeholder="e.g. OpenAI" />
+
+      <label for="llmParametersInput">LLM Parameters:</label>
+      <textarea id="llmParametersInput" rows="2" placeholder="e.g. Temperature: 0.7, System: [unknown]"></textarea>
+
+      <label for="contextWarningInput">Context Warning:</label>
+      <textarea id="contextWarningInput" rows="2" placeholder="Any disclaimers about partial context"></textarea>
+
+      <label for="additionalNotesInput">Additional Notes:</label>
+      <textarea id="additionalNotesInput" rows="2" placeholder="Anything else about the test"></textarea>
+
+      <button id="createTestConditionBtn">Add Test Condition</button>
+      <div class="error" id="testCondErrorMsg"></div>
+      <div class="success" id="testCondSuccessMsg"></div>
+    </div>
+  </div>
+
+  <!-- 4. JavaScript / Supabase logic -->
+  <script>
+    // ===== SUPABASE SETUP =====
+    const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // ===== DOM ELEMENTS =====
+    // A. Manage Prompts
+    const promptsTableBody = document.getElementById('promptsTableBody');
+    const promptTextInput = document.getElementById('promptTextInput');
+    const contextTypeSelect = document.getElementById('contextTypeSelect');
+    const createPromptBtn = document.getElementById('createPromptBtn');
+    const promptErrorMsg = document.getElementById('promptErrorMsg');
+    const promptSuccessMsg = document.getElementById('promptSuccessMsg');
+
+    // B. Prompts -> Stages
+    const promptsStagesTableBody = document.getElementById('promptsStagesTableBody');
+    const mapPromptSelect = document.getElementById('mapPromptSelect');
+    const mapStageSelect = document.getElementById('mapStageSelect');
+    const mapExtraMetadata = document.getElementById('mapExtraMetadata');
+    const createMappingBtn = document.getElementById('createMappingBtn');
+    const mappingErrorMsg = document.getElementById('mappingErrorMsg');
+    const mappingSuccessMsg = document.getElementById('mappingSuccessMsg');
+
+    // C. Test Conditions
+    const testConditionsTableBody = document.getElementById('testConditionsTableBody');
+    const testConditionPromptSelect = document.getElementById('testConditionPromptSelect');
+    const llmNameInput = document.getElementById('llmNameInput');
+    const llmVersionInput = document.getElementById('llmVersionInput');
+    const llmProviderInput = document.getElementById('llmProviderInput');
+    const llmParametersInput = document.getElementById('llmParametersInput');
+    const contextWarningInput = document.getElementById('contextWarningInput');
+    const additionalNotesInput = document.getElementById('additionalNotesInput');
+    const createTestConditionBtn = document.getElementById('createTestConditionBtn');
+    const testCondErrorMsg = document.getElementById('testCondErrorMsg');
+    const testCondSuccessMsg = document.getElementById('testCondSuccessMsg');
+
+    // ===== 1. MANAGE PROMPTS =====
+
+    // A. Load existing prompts into a table
+    async function loadPrompts() {
+      promptsTableBody.innerHTML = '<tr><td colspan="3">Loading prompts...</td></tr>';
+      let { data: prompts, error } = await supabase
+        .from('prompts')
+        .select('*')
+        .order('prompt_id', { ascending: true });
+
+      if (error) {
+        console.error('Error loading prompts:', error);
+        promptsTableBody.innerHTML = '<tr><td colspan="3" style="color:red;">Failed to load prompts.</td></tr>';
+        return;
+      }
+
+      promptsTableBody.innerHTML = '';
+      prompts.forEach(p => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${p.prompt_id}</td>
+          <td>${p.prompt_text}</td>
+          <td>${p.context_type}</td>
+        `;
+        promptsTableBody.appendChild(tr);
+      });
+    }
+
+    // B. Create a new prompt
+    async function createPrompt() {
+      promptErrorMsg.textContent = '';
+      promptSuccessMsg.textContent = '';
+
+      const promptTextVal = promptTextInput.value.trim();
+      const contextTypeVal = contextTypeSelect.value;
+
+      if (!promptTextVal) {
+        promptErrorMsg.textContent = 'Prompt text cannot be empty.';
+        return;
+      }
+
+      let { data, error } = await supabase
+        .from('prompts')
+        .insert([{ prompt_text: promptTextVal, context_type: contextTypeVal }])
+        .select('*');
+
+      if (error) {
+        console.error('Error creating prompt:', error);
+        promptErrorMsg.textContent = 'Failed to create prompt.';
+        return;
+      }
+
+      promptSuccessMsg.textContent = 'Prompt created successfully!';
+      promptTextInput.value = '';
+
+      // Reload prompt table
+      loadPrompts();
+      // Also reload the prompt lists in the stage-mapping and test-condition forms
+      loadPromptsIntoSelect(mapPromptSelect);
+      loadPromptsIntoSelect(testConditionPromptSelect);
+    }
+
+    createPromptBtn.addEventListener('click', createPrompt);
+
+    // ===== 2. PROMPTS -> STAGES MAPPING =====
+
+    // A. Load existing prompt-stage mappings
+    async function loadPromptsWithStages() {
+      promptsStagesTableBody.innerHTML = '<tr><td colspan="5">Loading prompt-stage data...</td></tr>';
+      let { data: junctionRows, error } = await supabase
+        .from('prompt_interaction_stages')
+        .select(`
+          id,
+          prompt_id,
+          stage_id,
+          extra_metadata,
+          prompts:prompt_id(*),
+          stages:stage_id(*)
+        `);
+
+      if (error) {
+        console.error('Error loading prompt-stage data:', error);
+        promptsStagesTableBody.innerHTML = '<tr><td colspan="5" style="color:red;">Failed to load prompt-stage data.</td></tr>';
+        return;
+      }
+
+      promptsStagesTableBody.innerHTML = '';
+      junctionRows.forEach(row => {
+        const p = row.prompts || {};
+        const s = row.stages || {};
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${p.prompt_id}</td>
+          <td>${p.prompt_text}</td>
+          <td>${p.context_type}</td>
+          <td>${s.stage_name}</td>
+          <td>${row.extra_metadata || ''}</td>
+        `;
+        promptsStagesTableBody.appendChild(tr);
+      });
+    }
+
+    // B. Load prompts into a <select> (for mapping)
+    async function loadPromptsIntoSelect(selectEl) {
+      let { data: prompts, error } = await supabase
+        .from('prompts')
+        .select('*')
+        .order('prompt_id', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching prompts for select:', error);
+        return;
+      }
+
+      selectEl.innerHTML = '';
+      prompts.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.prompt_id;
+        const truncated = p.prompt_text.length > 50 ? p.prompt_text.slice(0, 47) + '...' : p.prompt_text;
+        opt.textContent = `ID ${p.prompt_id} - ${truncated}`;
+        selectEl.appendChild(opt);
+      });
+    }
+
+    // C. Load stages into a <select>
+    async function loadStagesIntoSelect() {
+      let { data: stages, error } = await supabase
+        .from('interaction_stages')
+        .select('*')
+        .order('stage_id', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching stages:', error);
+        return;
+      }
+
+      mapStageSelect.innerHTML = '';
+      stages.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.stage_id;
+        opt.textContent = s.stage_name;
+        mapStageSelect.appendChild(opt);
+      });
+    }
+
+    // D. Create a new prompt-stage mapping
+    createMappingBtn.addEventListener('click', async () => {
+      mappingErrorMsg.textContent = '';
+      mappingSuccessMsg.textContent = '';
+
+      const promptIdVal = mapPromptSelect.value;
+      const stageIdVal = mapStageSelect.value;
+      const extraVal = mapExtraMetadata.value.trim();
+
+      if (!promptIdVal || !stageIdVal) {
+        mappingErrorMsg.textContent = 'Please select both prompt and stage.';
+        return;
+      }
+
+      let { data, error } = await supabase
+        .from('prompt_interaction_stages')
+        .insert([
+          {
+            prompt_id: parseInt(promptIdVal, 10),
+            stage_id: parseInt(stageIdVal, 10),
+            extra_metadata: extraVal
+          }
+        ])
+        .select('*');
+
+      if (error) {
+        console.error('Error creating prompt-stage mapping:', error);
+        mappingErrorMsg.textContent = 'Failed to create mapping.';
+        return;
+      }
+
+      mappingSuccessMsg.textContent = 'Mapping created successfully!';
+      mapExtraMetadata.value = '';
+      loadPromptsWithStages();
+    });
+
+    // ===== 3. PROMPT TEST CONDITIONS =====
+
+    // A. Load all test conditions
+    async function loadTestConditions() {
+      testConditionsTableBody.innerHTML = '<tr><td colspan="9">Loading test conditions...</td></tr>';
+
+      let { data: conditions, error } = await supabase
+        .from('prompt_test_conditions')
+        .select('*')
+        .order('test_condition_id', { ascending: true });
+
+      if (error) {
+        console.error('Error loading test conditions:', error);
+        testConditionsTableBody.innerHTML = '<tr><td colspan="9" style="color:red;">Failed to load test conditions.</td></tr>';
+        return;
+      }
+
+      testConditionsTableBody.innerHTML = '';
+      conditions.forEach(tc => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${tc.test_condition_id}</td>
+          <td>${tc.prompt_id}</td>
+          <td>${tc.llm_name || ''}</td>
+          <td>${tc.llm_version || ''}</td>
+          <td>${tc.llm_provider || ''}</td>
+          <td>${tc.llm_parameters || ''}</td>
+          <td>${tc.context_warning || ''}</td>
+          <td>${new Date(tc.test_date).toLocaleString()}</td>
+          <td>${tc.additional_notes || ''}</td>
+        `;
+        testConditionsTableBody.appendChild(tr);
+      });
+    }
+
+    // B. Create a new test condition
+    createTestConditionBtn.addEventListener('click', async () => {
+      testCondErrorMsg.textContent = '';
+      testCondSuccessMsg.textContent = '';
+
+      const promptIdVal = testConditionPromptSelect.value;
+      const llmNameVal = llmNameInput.value.trim();
+      const llmVersionVal = llmVersionInput.value.trim();
+      const llmProviderVal = llmProviderInput.value.trim();
+      const llmParamsVal = llmParametersInput.value.trim();
+      const contextWarnVal = contextWarningInput.value.trim();
+      const notesVal = additionalNotesInput.value.trim();
+
+      if (!promptIdVal) {
+        testCondErrorMsg.textContent = 'Please select a prompt ID for this test condition.';
+        return;
+      }
+
+      let { data, error } = await supabase
+        .from('prompt_test_conditions')
+        .insert([
+          {
+            prompt_id: parseInt(promptIdVal, 10),
+            llm_name: llmNameVal,
+            llm_version: llmVersionVal,
+            llm_provider: llmProviderVal,
+            llm_parameters: llmParamsVal,
+            context_warning: contextWarnVal,
+            additional_notes: notesVal
+          }
+        ])
+        .select('*');
+
+      if (error) {
+        console.error('Error inserting test condition:', error);
+        testCondErrorMsg.textContent = 'Failed to create test condition.';
+        return;
+      }
+
+      testCondSuccessMsg.textContent = 'Test condition created successfully!';
+
+      // Clear fields
+      llmNameInput.value = '';
+      llmVersionInput.value = '';
+      llmProviderInput.value = '';
+      llmParametersInput.value = '';
+      contextWarningInput.value = '';
+      additionalNotesInput.value = '';
+
+      // Reload test conditions table
+      loadTestConditions();
+    });
+
+    // ===== 4. INITIALIZATION =====
+    async function initPage() {
+      // 4A. Load Prompts Table
+      loadPrompts();
+
+      // 4B. Load Prompts->Stages
+      loadPromptsWithStages();
+
+      // 4C. Populate prompt <select> for mapping
+      loadPromptsIntoSelect(mapPromptSelect);
+
+      // 4D. Populate stage <select> for mapping
+      loadStagesIntoSelect();
+
+      // 4E. Populate prompt <select> for test conditions
+      loadPromptsIntoSelect(testConditionPromptSelect);
+
+      // 4F. Load existing test conditions
+      loadTestConditions();
+    }
+
+    initPage();
+  </script>
+</body>
+</html>
